@@ -57,3 +57,56 @@ func TestCheckPrivileged(t *testing.T) {
 		})
 	}
 }
+
+func newPodWithSC(podSC *corev1.PodSecurityContext, containers ...corev1.Container) *corev1.Pod {
+	p := newPod(containers...)
+	p.Spec.SecurityContext = podSC
+	return p
+}
+
+func ctrWithNonRoot(name string, v *bool) corev1.Container {
+	c := corev1.Container{Name: name}
+	if v != nil {
+		c.SecurityContext = &corev1.SecurityContext{RunAsNonRoot: v}
+	}
+	return c
+}
+
+func TestCheckRunAsNonRoot(t *testing.T) {
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want []string // noms des conteneurs en violation
+	}{
+		{"rien de défini", newPod(ctrWithNonRoot("app", nil)), []string{"app"}},
+		{"conteneur true", newPod(ctrWithNonRoot("app", boolPtr(true))), nil},
+		{"conteneur false", newPod(ctrWithNonRoot("app", boolPtr(false))), []string{"app"}},
+		{"pod true, conteneur absent (hérité)",
+			newPodWithSC(&corev1.PodSecurityContext{RunAsNonRoot: boolPtr(true)}, ctrWithNonRoot("app", nil)), nil},
+		{"pod true, conteneur false (écrase)",
+			newPodWithSC(&corev1.PodSecurityContext{RunAsNonRoot: boolPtr(true)}, ctrWithNonRoot("app", boolPtr(false))), []string{"app"}},
+		{"pod false, conteneur true (écrase)",
+			newPodWithSC(&corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false)}, ctrWithNonRoot("app", boolPtr(true))), nil},
+		{"pod false, conteneur absent",
+			newPodWithSC(&corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false)}, ctrWithNonRoot("app", nil)), []string{"app"}},
+		{"deux conteneurs, un seul fautif",
+			newPod(ctrWithNonRoot("ok", boolPtr(true)), ctrWithNonRoot("bad", nil)), []string{"bad"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CheckRunAsNonRoot(tt.pod)
+			if len(got) != len(tt.want) {
+				t.Fatalf("attendu %d finding(s), obtenu %d", len(tt.want), len(got))
+			}
+			for i, f := range got {
+				if f.ContainerName != tt.want[i] {
+					t.Errorf("conteneur attendu %q, obtenu %q", tt.want[i], f.ContainerName)
+				}
+				if f.RuleID != "KG-002" || f.Severity != SeverityHigh {
+					t.Errorf("RuleID/Severity inattendus: %s / %s", f.RuleID, f.Severity)
+				}
+			}
+		})
+	}
+}
