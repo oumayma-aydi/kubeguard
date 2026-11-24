@@ -5,28 +5,18 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - security.kubeguard.io
+  - ""
   resources:
-  - kubeguardpolicies
+  - pods
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - security.kubeguard.io
   resources:
-  - kubeguardpolicies/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - security.kubeguard.io
-  resources:
-  - kubeguardpolicies/status
+  - kubeguardpolicies
   verbs:
   - get
-  - patch
-  - update
+  - list
+  - watch

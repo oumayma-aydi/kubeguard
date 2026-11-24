@@ -37,6 +37,7 @@ import (
 
 	securityv1alpha1 "github.com/oumayma-aydi/kubeguard/api/v1alpha1"
 	"github.com/oumayma-aydi/kubeguard/internal/controller"
+	"github.com/oumayma-aydi/kubeguard/internal/state"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -185,6 +186,7 @@ func main() {
 	if err := (&controller.KubeGuardPolicyReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Store:  state.NewStore(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "kubeguardpolicy")
 		os.Exit(1)
