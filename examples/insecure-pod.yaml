@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure
+  namespace: kubeguard-demo
+spec:
+  containers:
+    - name: app
+      image: nginx:latest
+      securityContext:
+        privileged: true
