@@ -1,0 +1,9 @@
+apiVersion: security.kubeguard.io/v1alpha1
+kind: KubeGuardPolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: kubeguard
+    app.kubernetes.io/managed-by: kustomize
+  name: kubeguardpolicy-sample
+spec:
+  # TODO(user): Add fields here
