@@ -110,3 +110,41 @@ func TestCheckRunAsNonRoot(t *testing.T) {
 		})
 	}
 }
+
+func ctrWithImage(name, image string) corev1.Container {
+	return corev1.Container{Name: name, Image: image}
+}
+
+func TestCheckImageTag(t *testing.T) {
+	tests := []struct {
+		name  string
+		image string
+		bad   bool
+	}{
+		{"sans tag", "nginx", true},
+		{"tag latest", "nginx:latest", true},
+		{"tag fixe", "nginx:1.27.4", false},
+		{"tag court", "redis:7.2", false},
+		{"registry avec port, sans tag", "localhost:5000/nginx", true},
+		{"registry avec port, tag fixe", "localhost:5000/nginx:1.27", false},
+		{"registry avec port, latest", "localhost:5000/nginx:latest", true},
+		{"digest seul", "nginx@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", false},
+		{"tag latest + digest", "nginx:latest@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", false},
+		{"LATEST en majuscules", "nginx:LATEST", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CheckImageTag(newPod(ctrWithImage("app", tt.image)))
+			if tt.bad && len(got) != 1 {
+				t.Fatalf("image %q : 1 finding attendu, obtenu %d", tt.image, len(got))
+			}
+			if !tt.bad && len(got) != 0 {
+				t.Fatalf("image %q : aucun finding attendu, obtenu %d", tt.image, len(got))
+			}
+			if tt.bad && (got[0].RuleID != "KG-003" || got[0].Severity != SeverityMedium) {
+				t.Errorf("RuleID/Severity inattendus: %s / %s", got[0].RuleID, got[0].Severity)
+			}
+		})
+	}
+}

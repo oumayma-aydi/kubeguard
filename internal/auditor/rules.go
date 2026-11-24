@@ -1,6 +1,11 @@
 package auditor
 
 import corev1 "k8s.io/api/core/v1"
+import (
+	"strings"
+
+	corev1 "k8s.io/api/core/v1"
+)
 
 // Rule est une fonction qui inspecte un Pod et retourne ses violations.
 type Rule func(pod *corev1.Pod) []Finding
@@ -64,6 +69,43 @@ func CheckRunAsNonRoot(pod *corev1.Pod) []Finding {
 				ContainerName:  c.Name,
 				Message:        "runAsNonRoot is not enforced for this container",
 				Recommendation: "Set securityContext.runAsNonRoot to true",
+			})
+		}
+	}
+	return findings
+}
+
+// isPinned indique si une référence d'image est fixée par tag (≠ latest) ou par digest.
+func isPinned(image string) bool {
+	// Un digest fixe l'image de façon immuable.
+	if strings.Contains(image, "@") {
+		return true
+	}
+	// Le tag suit le dernier ":" situé après le dernier "/".
+	// Sinon le ":" appartient au port du registry (ex: localhost:5000/nginx).
+	lastSlash := strings.LastIndex(image, "/")
+	lastColon := strings.LastIndex(image, ":")
+	if lastColon <= lastSlash {
+		return false // aucun tag
+	}
+	tag := image[lastColon+1:]
+	return tag != "" && !strings.EqualFold(tag, "latest")
+}
+
+// CheckImageTag implémente KG-003.
+func CheckImageTag(pod *corev1.Pod) []Finding {
+	var findings []Finding
+	for _, c := range allContainers(pod) {
+		if !isPinned(c.Image) {
+			findings = append(findings, Finding{
+				RuleID:         "KG-003",
+				RuleName:       "Unpinned Image",
+				Severity:       SeverityMedium,
+				Namespace:      pod.Namespace,
+				PodName:        pod.Name,
+				ContainerName:  c.Name,
+				Message:        "Image " + c.Image + " uses the latest tag or no tag",
+				Recommendation: "Use a specific version tag or an image digest",
 			})
 		}
 	}
