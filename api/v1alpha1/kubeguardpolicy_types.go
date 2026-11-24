@@ -25,16 +25,25 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // KubeGuardPolicySpec defines the desired state of KubeGuardPolicy
+// KubeGuardPolicySpec defines the desired state of KubeGuardPolicy
 type KubeGuardPolicySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+	// enabledRules liste les règles de sécurité à appliquer.
+	// +kubebuilder:validation:MinItems=1
+	// +listType=set
+	EnabledRules []RuleName `json:"enabledRules"`
 
-	// foo is an example field of KubeGuardPolicy. Edit kubeguardpolicy_types.go to remove/update
+	// severityOverrides permet de changer la sévérité par défaut d'une règle.
 	// +optional
-	Foo *string `json:"foo,omitempty"`
+	SeverityOverrides map[RuleName]Severity `json:"severityOverrides,omitempty"`
 }
+
+// RuleName identifie une règle d'audit.
+// +kubebuilder:validation:Enum=privileged;runAsNonRoot;latestImage;resourceLimits
+type RuleName string
+
+// Severity est le niveau de criticité d'un finding.
+// +kubebuilder:validation:Enum=CRITICAL;HIGH;MEDIUM;LOW
+type Severity string
 
 // KubeGuardPolicyStatus defines the observed state of KubeGuardPolicy.
 type KubeGuardPolicyStatus struct {
