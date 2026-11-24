@@ -110,3 +110,43 @@ func CheckImageTag(pod *corev1.Pod) []Finding {
 	}
 	return findings
 }
+
+// hasLimit indique si une limite non nulle est définie pour la ressource.
+func hasLimit(c corev1.Container, name corev1.ResourceName) bool {
+	q, ok := c.Resources.Limits[name]
+	return ok && !q.IsZero()
+}
+
+// CheckResourceLimits implémente KG-004.
+func CheckResourceLimits(pod *corev1.Pod) []Finding {
+	var findings []Finding
+	for _, c := range allContainers(pod) {
+		noCPU := !hasLimit(c, corev1.ResourceCPU)
+		noMem := !hasLimit(c, corev1.ResourceMemory)
+		if !noCPU && !noMem {
+			continue
+		}
+
+		var missing string
+		switch {
+		case noCPU && noMem:
+			missing = "CPU and memory"
+		case noCPU:
+			missing = "CPU"
+		default:
+			missing = "memory"
+		}
+
+		findings = append(findings, Finding{
+			RuleID:         "KG-004",
+			RuleName:       "Missing Resource Limits",
+			Severity:       SeverityMedium,
+			Namespace:      pod.Namespace,
+			PodName:        pod.Name,
+			ContainerName:  c.Name,
+			Message:        "Missing resource limits: " + missing,
+			Recommendation: "Set resources.limits for " + missing,
+		})
+	}
+	return findings
+}

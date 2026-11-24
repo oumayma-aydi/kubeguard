@@ -4,7 +4,8 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1" 
+	resource "k8s.io/apimachinery/pkg/api/resource"
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -144,6 +145,63 @@ func TestCheckImageTag(t *testing.T) {
 			}
 			if tt.bad && (got[0].RuleID != "KG-003" || got[0].Severity != SeverityMedium) {
 				t.Errorf("RuleID/Severity inattendus: %s / %s", got[0].RuleID, got[0].Severity)
+			}
+		})
+	}
+}
+
+func ctrWithLimits(name string, cpu, mem string) corev1.Container {
+	limits := corev1.ResourceList{}
+	if cpu != "" {
+		limits[corev1.ResourceCPU] = resource.MustParse(cpu)
+	}
+	if mem != "" {
+		limits[corev1.ResourceMemory] = resource.MustParse(mem)
+	}
+	return corev1.Container{
+		Name:      name,
+		Resources: corev1.ResourceRequirements{Limits: limits},
+	}
+}
+
+func TestCheckResourceLimits(t *testing.T) {
+	tests := []struct {
+		name    string
+		ctr     corev1.Container
+		wantBad bool
+		wantMsg string // sous-chaîne attendue dans le message
+	}{
+		{"cpu et mémoire présents", ctrWithLimits("app", "500m", "128Mi"), false, ""},
+		{"cpu absent", ctrWithLimits("app", "", "128Mi"), true, "CPU"},
+		{"mémoire absente", ctrWithLimits("app", "500m", ""), true, "memory"},
+		{"les deux absents", ctrWithLimits("app", "", ""), true, "CPU and memory"},
+		{"limit à zéro = absent", ctrWithLimits("app", "0", "128Mi"), true, "CPU"},
+		{"requests seules, pas de limits",
+			corev1.Container{
+				Name: "app",
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("64Mi")},
+				},
+			}, true, "CPU and memory"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CheckResourceLimits(newPod(tt.ctr))
+			if !tt.wantBad {
+				if len(got) != 0 {
+					t.Fatalf("aucun finding attendu, obtenu %d", len(got))
+				}
+				return
+			}
+			if len(got) != 1 {
+				t.Fatalf("1 finding attendu, obtenu %d", len(got))
+			}
+			if got[0].RuleID != "KG-004" || got[0].Severity != SeverityMedium {
+				t.Errorf("RuleID/Severity inattendus: %s / %s", got[0].RuleID, got[0].Severity)
+			}
+			if !strings.Contains(got[0].Message, tt.wantMsg) {
+				t.Errorf("message %q devrait contenir %q", got[0].Message, tt.wantMsg)
 			}
 		})
 	}
